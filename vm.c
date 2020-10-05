@@ -320,8 +320,13 @@ copyuvm(pde_t *pgdir, uint sz)
   uint pa, i, flags;
   char *mem;
 
-  if((d = setupkvm()) == 0)
+  // d = setupkvm();
+  if ((d = (pde_t *)kalloc()) == 0)
     return 0;
+  memset(d, 0, PGSIZE);
+  copykvm(d);
+
+
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
@@ -383,6 +388,40 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
     va = va0 + PGSIZE;
   }
   return 0;
+}
+
+void copykvm(pde_t *pgdir){
+  struct kmap *k;
+  pde_t* pde;
+  pde_t* kpde;
+  pte_t* pte;
+  char *a, *last;
+
+  // memmove(pgdir, kpgdir, PGSIZE);
+
+  for (k = kmap; k < &kmap[NELEM(kmap)]; k++)
+  {
+    a = (char *)PGROUNDDOWN((uint)k->virt);
+    last = (char *)PGROUNDDOWN(((uint)k->virt) + k->phys_end - k->phys_start - 1);
+    cprintf("a:%p, last:%p\n", a, last);
+    for (;;)
+    {
+      pde = &pgdir[PDX(a)];
+      kpde = &kpgdir[PDX(a)];
+      // cprintf("table=%p\n", *pde);
+      if (!(*pde & PTE_P) && (*kpde & PTE_P))
+      {
+        *pde = *kpde;
+        cprintf("copying %p to %p, content=%p\n", kpde, pde, *kpde);
+        pte = walkpgdir(pgdir, (pte_t*)P2V(PTE_ADDR(*pde)), 1);
+        *pte = PTE_ADDR(*pde) | k->perm | PTE_P;
+      }
+      if (a == last)
+        break;
+      a += PGSIZE;
+    }
+    cprintf("finish %p\n\n", k->virt);
+  }
 }
 
 //PAGEBREAK!
