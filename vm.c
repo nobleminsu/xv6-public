@@ -289,6 +289,11 @@ freevm(pde_t *pgdir)
     panic("freevm: no pgdir");
   deallocuvm(pgdir, KERNBASE, 0);
   for(i = 0; i < NPDENTRIES; i++){
+    if (pgdir[i] & PTE_K)
+    {
+      // page table for kernel memory, don't free them
+      continue;
+    }
     if(pgdir[i] & PTE_P){
       char * v = P2V(PTE_ADDR(pgdir[i]));
       kfree(v);
@@ -394,16 +399,12 @@ void copykvm(pde_t *pgdir){
   struct kmap *k;
   pde_t* pde;
   pde_t* kpde;
-  pte_t* pte;
   char *a, *last;
-
-  // memmove(pgdir, kpgdir, PGSIZE);
 
   for (k = kmap; k < &kmap[NELEM(kmap)]; k++)
   {
     a = (char *)PGROUNDDOWN((uint)k->virt);
     last = (char *)PGROUNDDOWN(((uint)k->virt) + k->phys_end - k->phys_start - 1);
-    cprintf("a:%p, last:%p\n", a, last);
     for (;;)
     {
       pde = &pgdir[PDX(a)];
@@ -411,16 +412,12 @@ void copykvm(pde_t *pgdir){
       // cprintf("table=%p\n", *pde);
       if (!(*pde & PTE_P) && (*kpde & PTE_P))
       {
-        *pde = *kpde;
-        cprintf("copying %p to %p, content=%p\n", kpde, pde, *kpde);
-        pte = walkpgdir(pgdir, (pte_t*)P2V(PTE_ADDR(*pde)), 1);
-        *pte = PTE_ADDR(*pde) | k->perm | PTE_P;
+        *pde = *kpde | PTE_K;
       }
       if (a == last)
         break;
       a += PGSIZE;
     }
-    cprintf("finish %p\n\n", k->virt);
   }
 }
 
