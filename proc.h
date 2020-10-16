@@ -49,6 +49,8 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  uint oldsz;                  // for demand paging, later used in pagefault handling
 };
 
 // Process memory is laid out contiguously, low addresses first:

@@ -78,6 +78,17 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
 
+  case T_PGFLT:
+    // heap segment
+    if (rcr2() < myproc()->sz)
+    {
+      // pagefault occured in the current process, not yet allocated
+      allocuvm(myproc()->pgdir, myproc()->oldsz, myproc()->sz);
+      myproc()->oldsz = myproc()->sz;
+      switchuvm(myproc());
+      break;
+    }
+
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
