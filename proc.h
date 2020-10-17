@@ -35,7 +35,7 @@ struct context {
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 struct proc_segment_map {
-  uint vaddr;
+  uint vaddr; // start address = vaddr, end address = vaddr + memsz
   uint memsz;
   uint off;
   uint filesz;
@@ -60,7 +60,8 @@ struct proc {
   uint oldsz;                  // for demand paging, later used in pagefault handling
   struct inode *p_file;        // program file inode
   struct proc_segment_map psegmaps[256]; // program segment mapping info
-  ushort phnum;
+  ushort phnum;                // number of current segment
+  char file_path[128];         // save file path
 };
 
 // Process memory is laid out contiguously, low addresses first:
