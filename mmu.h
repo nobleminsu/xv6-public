@@ -100,6 +100,8 @@ struct segdesc {
 #define PTE_ADDR(pte)   ((uint)(pte) & ~0xFFF)
 #define PTE_FLAGS(pte)  ((uint)(pte) &  0xFFF)
 
+#define PA_LAZY -1
+
 #ifndef __ASSEMBLER__
 typedef uint pte_t;
 

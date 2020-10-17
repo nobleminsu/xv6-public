@@ -34,6 +34,13 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct proc_segment_map {
+  uint vaddr;
+  uint memsz;
+  uint off;
+  uint filesz;
+};
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -51,6 +58,9 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   uint oldsz;                  // for demand paging, later used in pagefault handling
+  struct inode *p_file;        // program file inode
+  struct proc_segment_map psegmaps[256]; // program segment mapping info
+  ushort phnum;
 };
 
 // Process memory is laid out contiguously, low addresses first:

@@ -79,15 +79,35 @@ trap(struct trapframe *tf)
     break;
 
   case T_PGFLT:
+    cprintf("detected pf @%p, eip=%p\n", rcr2(), tf->eip);
     // heap segment
-    if (rcr2() < myproc()->sz)
+    if (rcr2() < myproc()->sz && myproc()->oldsz < myproc()->sz)
     {
       // pagefault occured in the current process, not yet allocated
-      allocuvm(myproc()->pgdir, myproc()->oldsz, myproc()->sz);
+      allocuvm(myproc()->pgdir, myproc()->oldsz, myproc()->sz, 1);
       myproc()->oldsz = myproc()->sz;
       switchuvm(myproc());
       break;
     }
+    
+    struct proc_segment_map* psegmap;
+    int i;
+    int hit;
+
+    // text, data segment
+    for (i = 0, psegmap = &myproc()->psegmaps[i]; i < myproc()->phnum; i++, psegmap = &myproc()->psegmaps[i] )
+    {
+      if (psegmap->vaddr <= PGROUNDDOWN(rcr2()) && PGROUNDDOWN(rcr2()) <= psegmap->vaddr + psegmap->memsz)
+      {
+        cprintf("text, data seg hit on %p - %p for %p\n", psegmap->vaddr, psegmap->vaddr + psegmap->memsz, rcr2());
+        hit = 1;
+        allocuvm(myproc()->pgdir, psegmap->vaddr, psegmap->vaddr + psegmap->memsz, 1);
+        loaduvm(myproc()->pgdir, (char *)psegmap->vaddr, myproc()->p_file, psegmap->off, psegmap->filesz);
+        break;
+      }
+    }
+    if (hit)
+      break;
 
   //PAGEBREAK: 13
   default:
