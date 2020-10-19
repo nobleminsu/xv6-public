@@ -51,8 +51,18 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
-  myproc()->oldsz = myproc()->sz;
-  myproc()->sz += n;
+  if (n < 0)
+  {
+    // growproc(n);
+    deallocuvm(myproc()->pgdir, myproc()->sz, myproc()->sz - n);
+    myproc()->oldsz = myproc()->sz + n;
+    myproc()->sz += n;
+  }
+  else
+  {
+    myproc()->oldsz = myproc()->sz;
+    myproc()->sz += n;
+  }
   // if(growproc(n) < 0)
   //   return -1;
   return addr;
