@@ -51,14 +51,32 @@ sys_sbrk(void)
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;
+  // cprintf("sbrk call addr=%p n=%d\n", addr, n);
   if (n < 0)
   {
     // growproc(n);
-    deallocuvm(myproc()->pgdir, myproc()->sz, myproc()->sz - n);
+    pte_t* pte;
+    uint pa;
+    uint a = PGROUNDUP(myproc()->sz + n);
+    // cprintf("newsize=%p\n",a);
+    for (; a < myproc()->sz; a += PGSIZE)
+    {
+      // cprintf("dealloc %p\n", a);
+      pte = walkpgdir(myproc()->pgdir, (char *)a, 0);
+      if ((*pte & PTE_P) != 0)
+      {
+        pa = PTE_ADDR(*pte);
+        if (pa == 0)
+          panic("kfree");
+        char *v = P2V(pa);
+        kfree(v);
+        *pte = 0;
+      }
+    }
     myproc()->oldsz = myproc()->sz + n;
     myproc()->sz += n;
   }
-  else
+  else if (n > 0)
   {
     myproc()->oldsz = myproc()->sz;
     myproc()->sz += n;
