@@ -221,6 +221,61 @@ fork(void)
   return pid;
 }
 
+int
+loadsegment(void* target_page){
+  int i;
+  int hit;
+  struct inode *ip;
+  struct proc_segment_map* psegmap;
+
+  ip = namei(myproc()->file_path);
+  ilock(ip);
+
+  for (i = 0, psegmap = &myproc()->psegmaps[i]; i < myproc()->phnum; i++, psegmap = &myproc()->psegmaps[i])
+  {
+    if (psegmap->vaddr <= (uint)target_page && (uint)target_page <= psegmap->vaddr + psegmap->memsz)
+    {
+      cprintf("text, data seg hit on %p - %p for %p, file=%p - %p\n",
+              psegmap->vaddr, psegmap->vaddr + psegmap->memsz, target_page,
+              psegmap->off, psegmap->off + psegmap->filesz);
+      hit = 1;
+      // allocuvm(myproc()->pgdir, psegmap->vaddr, psegmap->vaddr + psegmap->memsz, 1);
+      // loaduvm(myproc()->pgdir, (char *)psegmap->vaddr, myproc()->p_file, psegmap->off, psegmap->filesz);
+
+      // TODO user test에서 돌아가게, sbrk test 통과
+      if ((uint)target_page + PGSIZE > psegmap->vaddr + psegmap->memsz)
+      {
+        // if remaining program segment is smaller than a page
+        allocuvm(myproc()->pgdir, (uint)target_page, psegmap->vaddr + psegmap->memsz, 1);
+        if ((int)(psegmap->filesz - ((uint)target_page - psegmap->vaddr)) > 0){
+          loaduvm(myproc()->pgdir, target_page, ip,
+                  (uint)target_page - psegmap->vaddr + psegmap->off,
+                  psegmap->filesz - ((uint)target_page - psegmap->vaddr));
+        cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+                psegmap->off + psegmap->filesz,
+                target_page, target_page + psegmap->filesz - ((uint)target_page - psegmap->vaddr));
+        }
+      }
+      else
+      {
+        allocuvm(myproc()->pgdir, (uint)target_page, (uint)target_page + PGSIZE, 1);
+        int size = PGSIZE;
+        if (psegmap->filesz < (uint)target_page - psegmap->vaddr + PGSIZE)
+          size = psegmap->filesz - ((uint)target_page - psegmap->vaddr);
+          if (size > 0){
+        loaduvm(myproc()->pgdir, target_page, ip,
+                (uint)target_page - psegmap->vaddr + psegmap->off, size);
+        cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+                target_page - psegmap->vaddr + psegmap->off + size,
+                target_page, target_page + size);}
+      }
+      break;
+    }
+  }
+  iunlockput(ip);
+  return hit;
+}
+
 // Exit the current process.  Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.

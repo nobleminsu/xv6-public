@@ -90,44 +90,13 @@ trap(struct trapframe *tf)
       break;
     }
     
-    struct proc_segment_map* psegmap;
-    int i;
     int hit;
-    char *target_page;
+    uint target_page;
     target_page = PGROUNDDOWN(rcr2());
 
     // text, data segment
-    for (i = 0, psegmap = &myproc()->psegmaps[i]; i < myproc()->phnum; i++, psegmap = &myproc()->psegmaps[i])
-    {
-      if (psegmap->vaddr <= target_page && target_page <= psegmap->vaddr + psegmap->memsz)
-      {
-        cprintf("text, data seg hit on %p - %p for %p, file=%p - %p\n",
-                psegmap->vaddr, psegmap->vaddr + psegmap->memsz, rcr2(),
-                psegmap->off, psegmap->off + psegmap->filesz);
-        hit = 1;
-        // allocuvm(myproc()->pgdir, psegmap->vaddr, psegmap->vaddr + psegmap->memsz, 1);
-        // loaduvm(myproc()->pgdir, (char *)psegmap->vaddr, myproc()->p_file, psegmap->off, psegmap->filesz);
+    hit = loadsegment((void*)target_page);
 
-        if (target_page + PGSIZE > psegmap->vaddr + psegmap->memsz)
-        {
-          // if remaining program segment is smaller than a page
-          allocuvm(myproc()->pgdir, target_page, psegmap->vaddr + psegmap->memsz, 1);
-          loaduvm(myproc()->pgdir, target_page, myproc()->p_file,
-                  target_page - psegmap->vaddr + psegmap->off,
-                  psegmap->filesz - ((uint)target_page - psegmap->vaddr));
-        }
-        else
-        {
-          allocuvm(myproc()->pgdir, target_page, target_page + PGSIZE, 1);
-          loaduvm(myproc()->pgdir, target_page, myproc()->p_file,
-                  target_page - psegmap->vaddr + psegmap->off, PGSIZE);
-          cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
-                  target_page - psegmap->vaddr + psegmap->off + PGSIZE,
-                  target_page, target_page + PGSIZE);
-        }
-        break;
-      }
-    }
     if (hit)
       break;
 
