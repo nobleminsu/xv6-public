@@ -247,13 +247,14 @@ loadsegment(void* target_page){
       {
         // if remaining program segment is smaller than a page
         allocuvm(myproc()->pgdir, (uint)target_page, psegmap->vaddr + psegmap->memsz, 1);
-        if ((int)(psegmap->filesz - ((uint)target_page - psegmap->vaddr)) > 0){
+        if ((int)(psegmap->filesz - ((uint)target_page - psegmap->vaddr)) > 0)
+        {
           loaduvm(myproc()->pgdir, target_page, ip,
                   (uint)target_page - psegmap->vaddr + psegmap->off,
                   psegmap->filesz - ((uint)target_page - psegmap->vaddr));
-        // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
-        //         psegmap->off + psegmap->filesz,
-        //         target_page, target_page + psegmap->filesz - ((uint)target_page - psegmap->vaddr));
+          // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+          //         psegmap->off + psegmap->filesz,
+          //         target_page, target_page + psegmap->filesz - ((uint)target_page - psegmap->vaddr));
         }
       }
       else
@@ -262,12 +263,14 @@ loadsegment(void* target_page){
         int size = PGSIZE;
         if (psegmap->filesz < (uint)target_page - psegmap->vaddr + PGSIZE)
           size = psegmap->filesz - ((uint)target_page - psegmap->vaddr);
-          if (size > 0){
-        loaduvm(myproc()->pgdir, target_page, ip,
-                (uint)target_page - psegmap->vaddr + psegmap->off, size);
-        // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
-        //         target_page - psegmap->vaddr + psegmap->off + size,
-        //         target_page, target_page + size);}
+        if (size > 0)
+        {
+          loaduvm(myproc()->pgdir, target_page, ip,
+                  (uint)target_page - psegmap->vaddr + psegmap->off, size);
+          // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+          //         target_page - psegmap->vaddr + psegmap->off + size,
+          //         target_page, target_page + size);
+        }
       }
       break;
     }
