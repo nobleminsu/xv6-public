@@ -224,7 +224,7 @@ fork(void)
 int
 loadsegment(void* target_page){
   int i;
-  int hit;
+  int hit = 0;
   struct inode *ip;
   struct proc_segment_map* psegmap;
 
