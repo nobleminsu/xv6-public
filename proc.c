@@ -235,9 +235,9 @@ loadsegment(void* target_page){
   {
     if (psegmap->vaddr <= (uint)target_page && (uint)target_page <= psegmap->vaddr + psegmap->memsz)
     {
-      cprintf("text, data seg hit on %p - %p for %p, file=%p - %p\n",
-              psegmap->vaddr, psegmap->vaddr + psegmap->memsz, target_page,
-              psegmap->off, psegmap->off + psegmap->filesz);
+      // cprintf("text, data seg hit on %p - %p for %p, file=%p - %p\n",
+      //         psegmap->vaddr, psegmap->vaddr + psegmap->memsz, target_page,
+      //         psegmap->off, psegmap->off + psegmap->filesz);
       hit = 1;
       // allocuvm(myproc()->pgdir, psegmap->vaddr, psegmap->vaddr + psegmap->memsz, 1);
       // loaduvm(myproc()->pgdir, (char *)psegmap->vaddr, myproc()->p_file, psegmap->off, psegmap->filesz);
@@ -251,9 +251,9 @@ loadsegment(void* target_page){
           loaduvm(myproc()->pgdir, target_page, ip,
                   (uint)target_page - psegmap->vaddr + psegmap->off,
                   psegmap->filesz - ((uint)target_page - psegmap->vaddr));
-        cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
-                psegmap->off + psegmap->filesz,
-                target_page, target_page + psegmap->filesz - ((uint)target_page - psegmap->vaddr));
+        // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+        //         psegmap->off + psegmap->filesz,
+        //         target_page, target_page + psegmap->filesz - ((uint)target_page - psegmap->vaddr));
         }
       }
       else
@@ -265,9 +265,9 @@ loadsegment(void* target_page){
           if (size > 0){
         loaduvm(myproc()->pgdir, target_page, ip,
                 (uint)target_page - psegmap->vaddr + psegmap->off, size);
-        cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
-                target_page - psegmap->vaddr + psegmap->off + size,
-                target_page, target_page + size);}
+        // cprintf("mapped %p-%p to %p-%p\n", target_page - psegmap->vaddr + psegmap->off,
+        //         target_page - psegmap->vaddr + psegmap->off + size,
+        //         target_page, target_page + size);}
       }
       break;
     }

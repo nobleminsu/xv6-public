@@ -79,7 +79,7 @@ trap(struct trapframe *tf)
     break;
 
   case T_PGFLT:
-    cprintf("detected pf @%p, eip=%p\n", rcr2(), tf->eip);
+    // cprintf("detected pf @%p, eip=%p\n", rcr2(), tf->eip);
     // heap segment
     if (rcr2() < myproc()->sz && myproc()->oldsz < myproc()->sz)
     {
@@ -96,7 +96,6 @@ trap(struct trapframe *tf)
 
     // text, data segment
     hit = loadsegment((void*)target_page);
-
     if (hit)
       break;
 
