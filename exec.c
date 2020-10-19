@@ -35,8 +35,12 @@ exec(char *path, char **argv)
   if(elf.magic != ELF_MAGIC)
     goto bad;
 
-  if((pgdir = setupkvm()) == 0)
+  // if((pgdir = setupkvm()) == 0)
+  //   goto bad;
+  if ((pgdir = (pde_t *)kalloc()) == 0)
     goto bad;
+  memset(pgdir, 0, PGSIZE);
+  copykvm(pgdir);
 
   curproc->p_file = ip;
   // Load program into memory.

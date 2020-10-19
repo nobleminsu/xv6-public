@@ -307,6 +307,11 @@ freevm(pde_t *pgdir)
     panic("freevm: no pgdir");
   deallocuvm(pgdir, KERNBASE, 0);
   for(i = 0; i < NPDENTRIES; i++){
+    if (pgdir[i] & PTE_K)
+    {
+      // page table for kernel memory, don't free them
+      continue;
+    }
     if(pgdir[i] & PTE_P){
       char * v = P2V(PTE_ADDR(pgdir[i]));
       kfree(v);
@@ -338,8 +343,13 @@ copyuvm(pde_t *pgdir, uint sz)
   uint pa, i, flags;
   char *mem;
 
-  if((d = setupkvm()) == 0)
+  // d = setupkvm();
+  if ((d = (pde_t *)kalloc()) == 0)
     return 0;
+  memset(d, 0, PGSIZE);
+  copykvm(d);
+
+
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
@@ -405,6 +415,32 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
     va = va0 + PGSIZE;
   }
   return 0;
+}
+
+void copykvm(pde_t *pgdir){
+  struct kmap *k;
+  pde_t* pde;
+  pde_t* kpde;
+  char *a, *last;
+
+  for (k = kmap; k < &kmap[NELEM(kmap)]; k++)
+  {
+    a = (char *)PGROUNDDOWN((uint)k->virt);
+    last = (char *)PGROUNDDOWN(((uint)k->virt) + k->phys_end - k->phys_start - 1);
+    for (;;)
+    {
+      pde = &pgdir[PDX(a)];
+      kpde = &kpgdir[PDX(a)];
+      // cprintf("table=%p\n", *pde);
+      if (!(*pde & PTE_P) && (*kpde & PTE_P))
+      {
+        *pde = *kpde | PTE_K;
+      }
+      if (a == last)
+        break;
+      a += PGSIZE;
+    }
+  }
 }
 
 //PAGEBREAK!
