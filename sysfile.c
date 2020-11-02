@@ -443,3 +443,16 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+int sys_testsys(void)
+{
+  int i;
+  char *ptr;
+  char *str;
+  int fd;
+  argint(0, &i);
+  argptr(1, &ptr, 4);
+  argstr(2, &str);
+  argfd(3, &fd, 0);
+  return 0;
+}
