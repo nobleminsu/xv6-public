@@ -443,3 +443,13 @@ sys_pipe(void)
   fd[1] = fd1;
   return 0;
 }
+
+int sys_testlock(void)
+{
+  static struct sleeplock lk;
+  if (holdingsleep(&lk))
+    releasesleep(&lk);
+  else
+    acquiresleep(&lk);
+  return 0;
+}

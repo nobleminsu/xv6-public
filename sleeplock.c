@@ -17,6 +17,7 @@ initsleeplock(struct sleeplock *lk, char *name)
   lk->name = name;
   lk->locked = 0;
   lk->pid = 0;
+  lk->head = 0;
 }
 
 void
@@ -24,6 +25,16 @@ acquiresleep(struct sleeplock *lk)
 {
   acquire(&lk->lk);
   while (lk->locked) {
+    // insert into the last of sleeplock list
+    if (!lk->head)
+      lk->head = myproc();
+    else
+    {
+      struct proc *node = lk->head;
+      while (node->next)
+        node = node->next;
+      node->next = myproc();
+    }
     sleep(lk, &lk->lk);
   }
   lk->locked = 1;
@@ -37,7 +48,13 @@ releasesleep(struct sleeplock *lk)
   acquire(&lk->lk);
   lk->locked = 0;
   lk->pid = 0;
-  wakeup(lk);
+  // wakeup(lk, 1);
+  if (lk->head && lk->head->state == SLEEPING)
+  {
+    lk->head->state = RUNNABLE;
+    lk->head = lk->head->next;
+  }
+  
   release(&lk->lk);
 }
 
