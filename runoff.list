@@ -17,6 +17,8 @@ main.c
 # locks
 spinlock.h
 spinlock.c
+semaphore.h
+semaphore.c
 
 # processes
 vm.c

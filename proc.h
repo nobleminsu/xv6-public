@@ -51,6 +51,7 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   struct proc *next;           // Sleep list
+  struct proc *semaNext;       // Semaphore list
 };
 
 // Process memory is laid out contiguously, low addresses first:

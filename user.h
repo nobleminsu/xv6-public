@@ -24,6 +24,8 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int testlock(void);
+int sematest(int);
+int rwsematest(int);
 
 // ulib.c
 int stat(const char*, struct stat*);

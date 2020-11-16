@@ -13,6 +13,7 @@
 #include "fs.h"
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "semaphore.h"
 #include "file.h"
 #include "fcntl.h"
 
@@ -451,5 +452,54 @@ int sys_testlock(void)
     releasesleep(&lk);
   else
     acquiresleep(&lk);
+  return 0;
+}
+
+int sys_sematest(void)
+{
+  static struct semaphore lk;
+  int cmd, ret = 0;
+  if (argint(0, &cmd) < 0)
+    return -1;
+  switch (cmd)
+  {
+  case 0:
+    initsema(&lk, 5);
+    ret = 5;
+    break;
+  case 1:
+    ret = downsema(&lk);
+    break;
+  case 2:
+    ret = upsema(&lk);
+    break;
+  }
+  return ret;
+}
+
+int sys_rwsematest(void)
+{
+  // static struct rwsemaphore lk;
+  // int cmd;
+  // if (argint(0, &cmd) < 0)
+  //   return -1;
+  // switch (cmd)
+  // {
+  // case 0:
+  //   initrwsema(&lk);
+  //   break;
+  // case 1:
+  //   downreadsema(&lk);
+  //   break;
+  // case 2:
+  //   upreadsema(&lk);
+  //   break;
+  // case 3:
+  //   downwritesema(&lk);
+  //   break;
+  // case 4:
+  //   upwritesema(&lk);
+  //   break;
+  // }
   return 0;
 }

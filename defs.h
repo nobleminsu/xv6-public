@@ -7,6 +7,7 @@ struct proc;
 struct rtcdate;
 struct spinlock;
 struct sleeplock;
+struct semaphore;
 struct stat;
 struct superblock;
 
@@ -188,3 +189,8 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+// semaphore.c
+void            initsema(struct semaphore *lk, int count);
+int             downsema(struct semaphore *lk);
+int             upsema(struct semaphore *lk);
