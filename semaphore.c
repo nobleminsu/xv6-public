@@ -16,8 +16,8 @@ void initsema(struct semaphore *lk, int count)
 
 int downsema(struct semaphore *lk)
 {
-    struct proc *curproc = myproc();
     acquire(&lk->dataLock);
+    struct proc *curproc = myproc();
 
     while (lk->curThreadCount == lk->maxThreadCount)
     {
@@ -29,11 +29,11 @@ int downsema(struct semaphore *lk)
         else
         {
             struct proc *node = lk->waitingProcHead;
-            while (node->next)
+            while (node->semaNext)
             {
-                node = node->next;
+                node = node->semaNext;
             }
-            node->next = curproc;
+            node->semaNext = curproc;
         }
         sleep(lk, &lk->dataLock);
     }
@@ -51,7 +51,7 @@ int upsema(struct semaphore *lk)
     if (lk->waitingProcHead && lk->waitingProcHead->state == SLEEPING)
     {
         lk->waitingProcHead->state = RUNNABLE;
-        lk->waitingProcHead = lk->waitingProcHead->next;
+        lk->waitingProcHead = lk->waitingProcHead->semaNext;
     }
     release(&lk->dataLock);
 

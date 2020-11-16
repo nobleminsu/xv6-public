@@ -52,6 +52,7 @@ struct proc {
 
   struct proc *next;           // Sleep list
   struct proc *semaNext;       // Semaphore list
+  struct proc *rwsemaNext;       // R/W Semaphore list
 };
 
 // Process memory is laid out contiguously, low addresses first:

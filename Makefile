@@ -15,6 +15,7 @@ OBJS = \
 	picirq.o\
 	pipe.o\
 	proc.o\
+	rwsemaphore.o\
 	semaphore.o\
 	sleeplock.o\
 	spinlock.o\
@@ -177,6 +178,7 @@ UPROGS=\
 	_ls\
 	_mkdir\
 	_rm\
+	_rwsematest\
 	_sematest\
 	_sh\
 	_stressfs\

@@ -5,6 +5,7 @@ struct inode;
 struct pipe;
 struct proc;
 struct rtcdate;
+struct rwsemaphore;
 struct spinlock;
 struct sleeplock;
 struct semaphore;
@@ -194,3 +195,10 @@ void            clearpteu(pde_t *pgdir, char *uva);
 void            initsema(struct semaphore *lk, int count);
 int             downsema(struct semaphore *lk);
 int             upsema(struct semaphore *lk);
+
+// rwsemaphore.c
+void            initrwsema(struct rwsemaphore *lk);
+void            downreadsema(struct rwsemaphore *lk);
+void            upreadsema(struct rwsemaphore *lk);
+void            downwritesema(struct rwsemaphore *lk);
+void            upwritesema(struct rwsemaphore *lk);
