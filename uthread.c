@@ -21,7 +21,8 @@ struct thread {
 static thread_t all_thread[MAX_THREAD];
 thread_p  current_thread;
 thread_p  next_thread;
-extern void thread_switch(void);
+extern void thread_switch();
+void thread_yield(void);
 
 void 
 thread_init(void)
@@ -36,7 +37,7 @@ thread_init(void)
 }
 
 static void 
-thread_schedule(void)
+thread_schedule()
 {
   thread_p t;
 
@@ -79,6 +80,7 @@ thread_create(void (*func)())
   * (int *) (t->sp) = (int)func;           // push return address on stack
   t->sp -= 32;                             // space for registers that thread_switch expects
   t->state = RUNNABLE;
+  uthread_create(thread_yield);
 }
 
 void 
@@ -94,8 +96,8 @@ mythread(void)
   int i;
   printf(1, "my thread running\n");
   for (i = 0; i < 100; i++) {
-    printf(1, "my thread 0x%x\n", (int) current_thread);
-    thread_yield();
+    printf(1, "my thread 0x%x %d\n", (int) current_thread, i);
+    // thread_yield();
   }
   printf(1, "my thread: exit\n");
   current_thread->state = FREE;
@@ -107,6 +109,8 @@ int
 main(int argc, char *argv[]) 
 {
   thread_init();
+  thread_create(mythread);
+  thread_create(mythread);
   thread_create(mythread);
   thread_create(mythread);
   thread_schedule();
