@@ -21,7 +21,7 @@ struct thread {
 static thread_t all_thread[MAX_THREAD];
 thread_p  current_thread;
 thread_p  next_thread;
-extern void thread_switch();
+extern void thread_switch(void);
 void thread_yield(void);
 
 void 
@@ -37,7 +37,7 @@ thread_init(void)
 }
 
 static void 
-thread_schedule()
+thread_schedule(void)
 {
   thread_p t;
 
