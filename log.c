@@ -44,6 +44,8 @@ struct log {
   int committing;  // in commit(), please wait.
   int dev;
   struct logheader lh;
+
+  struct buf *logbuf[8]; // arbitrary number
 };
 struct log log;
 
@@ -72,7 +74,11 @@ install_trans(void)
   int tail;
 
   for (tail = 0; tail < log.lh.n; tail++) {
-    struct buf *lbuf = bread(log.dev, log.start+tail+1); // read log block
+    struct buf *lbuf = log.logbuf[tail];
+    if (!lbuf)
+    {
+      lbuf = bread(log.dev, log.start + tail + 1); // read log block
+    }
     struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
     memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
     bwrite(dbuf);  // write dst to disk
@@ -181,11 +187,12 @@ write_log(void)
 
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
+    log.logbuf[tail] = to;
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
     brelse(from);
-    brelse(to);
+    // brelse(to);
   }
 }
 
