@@ -49,8 +49,14 @@ struct log {
 };
 struct log log;
 
+struct spinlock ckptlock;
+
 static void recover_from_log(void);
 static void commit();
+static void init_ckpt(void);
+static void run_ckpt(void);
+static void install_trans(void);
+static void write_head(void);
 
 void
 initlog(int dev)
@@ -65,6 +71,26 @@ initlog(int dev)
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
+
+  initlock(&ckptlock, "checkpoint lock");
+  init_ckpt();
+}
+
+static void init_ckpt(void)
+{
+  cprintf("ckpting %p\n", run_ckpt);
+  kfork((uint)run_ckpt);
+}
+
+static void run_ckpt(void)
+{
+  while (1)
+  {
+    sleep(&ckptlock, &ckptlock);
+    install_trans();
+    log.lh.n = 0;
+    write_head(); // Erase the transaction from the log
+  }
 }
 
 // Copy committed blocks from log to their home location
@@ -202,9 +228,10 @@ commit()
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
-    install_trans(); // Now install writes to home locations
-    log.lh.n = 0;
-    write_head();    // Erase the transaction from the log
+    // install_trans(); // Now install writes to home locations
+    wakeup(&ckptlock);
+    // log.lh.n = 0;
+    // write_head();    // Erase the transaction from the log
   }
 }
 
