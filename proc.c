@@ -256,7 +256,8 @@ kfork(uint next_eip)
 
   pid = np->pid;
 
-  np->tf->eip = next_eip;
+  cprintf("eip was %p\n", np->context->eip);
+  np->context->eip = next_eip;
 
   acquire(&ptable.lock);
 

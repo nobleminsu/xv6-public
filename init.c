@@ -6,11 +6,12 @@
 #include "fcntl.h"
 
 char *argv[] = { "sh", 0 };
+char *argv2[] = { "logckpt", 0 };
 
 int
 main(void)
 {
-  int pid, wpid;
+  int pid, wpid, lpid;
 
   if(open("console", O_RDWR) < 0){
     mknod("console", 1, 1);
@@ -31,7 +32,19 @@ main(void)
       printf(1, "init: exec sh failed\n");
       exit();
     }
-    while((wpid=wait()) >= 0 && wpid != pid)
+    
+    lpid = fork();
+    if(lpid < 0){
+      printf(1, "init: fork failed\n");
+      exit();
+    }
+    if(lpid == 0){
+      exec("logckpt", argv2);
+      printf(1, "init: exec logckpt failed\n");
+      exit();
+    }
+
+    while((wpid=wait()) >= 0 && (wpid != pid || wpid != lpid))
       printf(1, "zombie!\n");
   }
 }

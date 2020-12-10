@@ -120,8 +120,8 @@ bwrite(struct buf *b)
 void
 brelse(struct buf *b)
 {
-  if(!holdingsleep(&b->lock))
-    panic("brelse");
+  // if(!holdingsleep(&b->lock))
+  //   panic("brelse");
 
   releasesleep(&b->lock);
 

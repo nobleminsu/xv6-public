@@ -89,3 +89,11 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int
+sys_runckpt(void)
+{
+  run_ckpt();
+
+  return 0;
+}

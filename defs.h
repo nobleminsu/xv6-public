@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct log;
 
 // bio.c
 void            binit(void);
@@ -86,6 +87,7 @@ void            initlog(int dev);
 void            log_write(struct buf*);
 void            begin_op();
 void            end_op();
+void            run_ckpt(void);
 
 // mp.c
 extern int      ismp;

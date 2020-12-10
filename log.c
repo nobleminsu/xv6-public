@@ -49,12 +49,11 @@ struct log {
 };
 struct log log;
 
-struct spinlock ckptlock;
+struct spinlock commitlock;
+struct sleeplock ckptlock;
 
 static void recover_from_log(void);
 static void commit();
-static void init_ckpt(void);
-static void run_ckpt(void);
 static void install_trans(void);
 static void write_head(void);
 
@@ -72,24 +71,20 @@ initlog(int dev)
   log.dev = dev;
   recover_from_log();
 
-  initlock(&ckptlock, "checkpoint lock");
-  init_ckpt();
+  initlock(&commitlock, "commit lock");
+  initsleeplock(&ckptlock, "checkpoint lock");
 }
 
-static void init_ckpt(void)
+void run_ckpt(void)
 {
-  cprintf("ckpting %p\n", run_ckpt);
-  kfork((uint)run_ckpt);
-}
-
-static void run_ckpt(void)
-{
+  // acquiresleep(&ckptlock);
   while (1)
   {
-    sleep(&ckptlock, &ckptlock);
+    // sleep(&ckptlock, &ckptlock);
+    // acquiresleep(&ckptlock);
     install_trans();
     log.lh.n = 0;
-    write_head(); // Erase the transaction from the log
+    write_head(); // Erase the transaction from the log 
   }
 }
 
@@ -98,7 +93,8 @@ static void
 install_trans(void)
 {
   int tail;
-
+  acquiresleep(&ckptlock);
+    // acquire(&commitlock);
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *lbuf = log.logbuf[tail];
     if (!lbuf)
@@ -108,9 +104,12 @@ install_trans(void)
     struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
     memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
     bwrite(dbuf);  // write dst to disk
-    brelse(lbuf);
     brelse(dbuf);
+    log.logbuf[tail] = 0;
+    brelse(lbuf);
   }
+    // release(&commitlock);
+  releasesleep(&ckptlock);
 }
 
 // Read the log header from disk into the in-memory log header
@@ -210,16 +209,21 @@ static void
 write_log(void)
 {
   int tail;
-
+  cprintf("writelog\n");
+  acquiresleep(&ckptlock);
+    // acquire(&commitlock);
   for (tail = 0; tail < log.lh.n; tail++) {
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
-    log.logbuf[tail] = to;
+    cprintf("writelog h\n");
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
+    log.logbuf[tail] = to;
     brelse(from);
     // brelse(to);
   }
+    // release(&commitlock);
+  releasesleep(&ckptlock);
 }
 
 static void
@@ -229,7 +233,9 @@ commit()
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
     // install_trans(); // Now install writes to home locations
-    wakeup(&ckptlock);
+    // wakeup(&ckptlock);
+    releasesleep(&ckptlock);
+    cprintf("commit return\n");
     // log.lh.n = 0;
     // write_head();    // Erase the transaction from the log
   }
