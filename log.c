@@ -239,3 +239,10 @@ log_write(struct buf *b)
   release(&log.lock);
 }
 
+void start_ckpt(void)
+{
+  cprintf("running start_ckpt in log.c\n");
+  for (;;)
+  {
+  }
+}

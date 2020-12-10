@@ -6,11 +6,12 @@
 #include "fcntl.h"
 
 char *argv[] = { "sh", 0 };
+char *ckpt_argv[] = {"ckptdaemon", 0};
 
 int
 main(void)
 {
-  int pid, wpid;
+  int pid, wpid, cpid;
 
   if(open("console", O_RDWR) < 0){
     mknod("console", 1, 1);
@@ -31,7 +32,21 @@ main(void)
       printf(1, "init: exec sh failed\n");
       exit();
     }
-    while((wpid=wait()) >= 0 && wpid != pid)
+
+    cpid = fork();
+    if (cpid < 0)
+    {
+      printf(1, "init: fork failed\n");
+      exit();
+    }
+    if (cpid == 0)
+    {
+      exec("ckptdaemon", ckpt_argv);
+      printf(1, "init: exec ckpt failed\n");
+      exit();
+    }
+
+    while((wpid=wait()) >= 0 && (wpid != pid && wpid != cpid))
       printf(1, "zombie!\n");
   }
 }
