@@ -446,6 +446,7 @@ sys_pipe(void)
 
 int sys_startckpt(void)
 {
+  cprintf("hello\n");
   start_ckpt();
 
   return 0;

@@ -45,7 +45,8 @@ struct log {
   int dev;
   struct logheader lh;
 
-  struct buf *logbuf[8]; // arbitrary number
+  struct buf *logbuf[4]; // arbitrary number
+  struct sleeplock buflock[4];
 };
 struct log log;
 
@@ -53,6 +54,8 @@ struct sleeplock cpktlock;
 
 static void recover_from_log(void);
 static void commit();
+
+int ckpt_initialized = 0;
 
 void
 initlog(int dev)
@@ -69,15 +72,22 @@ initlog(int dev)
   recover_from_log();
 
   initsleeplock(&cpktlock, "checkpoint lock");
+
+  int i;
+  for (i = 0; i < 4; i++)
+  {
+    initsleeplock(&log.buflock[i], "buflock");
+  }
 }
 
 // Copy committed blocks from log to their home location
 static void
-install_trans(void)
+install_trans(int lognum)
 {
   int tail;
 
-  for (tail = 0; tail < log.lh.n; tail++) {
+  for (tail = 0; tail < lognum; tail++) {
+    cprintf("==================commiting STA log t=%d \n", tail);
     struct buf *lbuf = log.logbuf[tail];
     if (!lbuf)
     {
@@ -88,8 +98,10 @@ install_trans(void)
     bwrite(dbuf);  // write dst to disk
     brelse(lbuf);
     brelse(dbuf);
-
+    acquire(&log.lock);
     log.logbuf[tail] = 0;
+    release(&log.lock);
+    cprintf("====================commiting FIN log t=%d d=%s\n", tail, lbuf->data);
   }
 }
 
@@ -128,7 +140,7 @@ static void
 recover_from_log(void)
 {
   read_head();
-  install_trans(); // if committed, copy from log to disk
+  install_trans(log.lh.n); // if committed, copy from log to disk
   log.lh.n = 0;
   write_head(); // clear the log
 }
@@ -190,19 +202,17 @@ static void
 write_log(void)
 {
   int tail;
-
   for (tail = 0; tail < log.lh.n; tail++) {
-    struct buf *to = log.logbuf[tail];
-    if (!to)
-    {
-      to = bread(log.dev, log.start + tail + 1); // log block
-      log.logbuf[tail] = to;
-    }
+    cprintf("==================writing STA t=%d\n", tail);
+    struct buf *to = bread(log.dev, log.start + tail + 1); // log block
+
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
     brelse(from);
     // brelse(to);
+    log.logbuf[tail] = to;
+    cprintf("==================writing FIN log t=%d d=%s\n", tail, from->data);
   }
 }
 
@@ -212,10 +222,18 @@ commit()
   if (log.lh.n > 0) {
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
-    releasesleep(&cpktlock);
-    // install_trans(); // Now install writes to home locations
-    // log.lh.n = 0;
-    // write_head();    // Erase the transaction from the log
+
+    if (!ckpt_initialized)
+    {
+      install_trans(log.lh.n); // Now install writes to home locations
+      log.lh.n = 0;
+      write_head(); // Erase the transaction from the log
+    }
+    else
+    {
+      cprintf("===============releasing ckptlock\n");
+      releasesleep(&cpktlock);
+    }
   }
 }
 
@@ -253,15 +271,23 @@ log_write(struct buf *b)
 void start_ckpt(void)
 {
   cprintf("running start_ckpt in log.c\n");
+    // acquiresleep(&cpktlock);
+  ckpt_initialized = 1;
+  acquiresleep(&cpktlock);
   for (;;)
   {
     acquiresleep(&cpktlock);
-    // cprintf("starting ckpt\n");
+    cprintf("==============running ckpt loop\n");
     if (log.lh.n > 0)
     {
-      install_trans(); // Now install writes to home locations
+      acquire(&log.lock);
+      int lognum = log.lh.n;
+      
+      release(&log.lock);
+      install_trans(lognum); // Now install writes to home locations
       log.lh.n = 0;
       write_head(); // Erase the transaction from the log
     }
+    // releasesleep(&cpktlock);
   }
 }
