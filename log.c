@@ -48,6 +48,7 @@ struct log {
 
   char commit_bitmap[LOGSIZE];
   struct buf *logbuf[LOGSIZE];
+  struct buf *diskbuf[LOGSIZE];
 };
 struct log log;
 
@@ -55,8 +56,6 @@ static void recover_from_log(void);
 static void commit();
 
 int ckpt_started = 0;
-int ckpt_running = 0;
-int ckpt_runcount = 0;
 struct sleeplock ckptlock;
 
 void
@@ -82,13 +81,16 @@ install_trans(int from_ckpt)
 {
   int tail;
 
-  while (ckpt_runcount > 0)
+  int need_more_run = 1;
+
+  while (need_more_run)
   {
+    need_more_run = 0;
     for (tail = 0; tail < LOGSIZE; tail++)
     {
       if (!log.commit_bitmap[tail])
         continue;
-      cprintf("==================commiting STA log t=%d \n", tail);
+      // cprintf("==================commiting STA log t=%d from=%d to=%d\n", tail, log.start+tail+1, log.lh.block[tail]);
       struct buf *lbuf;
       if (from_ckpt)
         lbuf = log.logbuf[tail];
@@ -96,21 +98,35 @@ install_trans(int from_ckpt)
       {
         lbuf = bread(log.dev, log.start + tail + 1); // read log block
       }
-      cprintf("commit@%d: ", tail);
-      struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
+      // cprintf("commit@%d: ", tail);      
+      struct buf *dbuf;
+      if (from_ckpt)
+        dbuf = log.diskbuf[tail];
+      else
+      {
+        dbuf = bread(log.dev, log.lh.block[tail]); // read dst
+      }
       memmove(dbuf->data, lbuf->data, BSIZE);                // copy block to dst
       bwrite(dbuf);                                          // write dst to disk
-      cprintf("commit@%d: ", tail);
+      // cprintf("==================commiting d=%s\n", lbuf->data);
+      // cprintf("commit@%d: ", tail);
       brelse(lbuf);
-      cprintf("commit@%d: ", tail);
+      // cprintf("commit@%d: ", tail);
       brelse(dbuf);
       acquire(&log.lock);
       log.lh.bitmap[tail] = 0;
       log.commit_bitmap[tail] = 0;
       release(&log.lock);
-      cprintf("====================commiting FIN log t=%d d=%s\n", tail, lbuf->data);
+      // cprintf("====================commiting FIN log t=%d\n", tail);
     }
-    ckpt_runcount -= 1;
+
+    acquire(&log.lock);
+    for (tail = 0; tail < LOGSIZE; tail++)
+    {
+      if (log.commit_bitmap[tail])
+        need_more_run = 1;
+    }
+    release(&log.lock);
   }
 }
 
@@ -153,7 +169,6 @@ static void
 recover_from_log(void)
 {
   read_head();
-  ckpt_runcount += 1;
   install_trans(0); // if committed, copy from log to disk
   // log.lh.n = 0;
   write_head(); // clear the log
@@ -220,21 +235,23 @@ write_log(void)
   int tail;
 
   for (tail = 0; tail < LOGSIZE; tail++) {
-    if (!log.lh.bitmap[tail])
+    if (!(log.lh.bitmap[tail] && !log.commit_bitmap[tail]))
       continue;
-    cprintf("==================writing STA t=%d\n", tail);
-    cprintf("write@%d: ", tail);
+    // cprintf("==================writing STA t=%d from=%d to=%d\n", tail, log.lh.block[tail], log.start+tail+1);
+    // cprintf("write@%d: ", tail);
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
     log.lh.bitmap[tail] = 1;
     log.logbuf[tail] = to;
-    cprintf("write@%d: ", tail);
+    // cprintf("write@%d: ", tail);
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
+    log.diskbuf[tail] = from;
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
-    cprintf("write@%d: ", tail);
-    brelse(from);
+    // cprintf("==================writing d=%s\n", from->data);
+    // cprintf("write@%d: ", tail);
+    // brelse(from);
     // brelse(to);
-    cprintf("==================writing FIN log t=%d d=%s\n", tail, from->data);
+    // cprintf("==================writing FIN log t=%d\n", tail, from->data);
   }
 }
 
@@ -253,7 +270,7 @@ commit()
   }
 
   if (go) {
-    cprintf("going commit\n");
+    // cprintf("going commit\n");
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
 
@@ -266,7 +283,6 @@ commit()
     }
     release(&log.lock);
 
-    ckpt_runcount += 1;
     if (!ckpt_started)
     {
       install_trans(1); // Now install writes to home locations
@@ -301,7 +317,7 @@ log_write(struct buf *b)
 
   acquire(&log.lock);
   for (i = 0; i < LOGSIZE; i++) {
-    if (log.lh.bitmap[i] && log.lh.block[i] == b->blockno)   // log absorbtion
+    if (log.lh.bitmap[i] && !log.commit_bitmap[i] && log.lh.block[i] == b->blockno) // log absorbtion
       break;
   }
   if (i == LOGSIZE)
@@ -312,6 +328,8 @@ log_write(struct buf *b)
         break;
     }
   }
+  if (log.commit_bitmap[i])
+    panic("bitmap wrong!");
   log.lh.bitmap[i] = 1;
   log.lh.block[i] = b->blockno;
   // if (i == log.lh.n)
@@ -328,12 +346,9 @@ void start_ckpt(void)
   for (;;)
   {
     acquiresleep(&ckptlock);
-    ckpt_running = 1;
-    cprintf("go checkpoint\n");
+    // cprintf("go checkpoint\n");
     install_trans(1); // Now install writes to home locations
-    // log.lh.n -= 0;
     write_head();    // Erase the transaction from the log
-    cprintf("fin checkpoint\n");
-    ckpt_running = 0;
+    // cprintf("fin checkpoint\n");
   }
 }

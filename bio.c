@@ -68,6 +68,7 @@ bget(uint dev, uint blockno)
   // Is the block already cached?
   for(b = bcache.head.next; b != &bcache.head; b = b->next){
     if(b->dev == dev && b->blockno == blockno){
+      // cprintf("waiting d=%d, bn=%d\n", dev, blockno);
       b->refcnt++;
       release(&bcache.lock);
       acquiresleep(&b->lock);
@@ -102,6 +103,7 @@ bread(uint dev, uint blockno)
   if((b->flags & B_VALID) == 0) {
     iderw(b);
   }
+  // cprintf("bread d=%d, bn=%d\n", dev, blockno);
   return b;
 }
 
@@ -109,8 +111,8 @@ bread(uint dev, uint blockno)
 void
 bwrite(struct buf *b)
 {
-  if(!holdingsleep(&b->lock))
-    panic("bwrite");
+  // if(!holdingsleep(&b->lock))
+  //   panic("bwrite");
   b->flags |= B_DIRTY;
   iderw(b);
 }
@@ -120,8 +122,9 @@ bwrite(struct buf *b)
 void
 brelse(struct buf *b)
 {
-  if(!holdingsleep(&b->lock))
-    panic("brelse");
+  // if(!holdingsleep(&b->lock))
+  //   panic("brelse");
+  // cprintf("brelse d=%d, bn=%d\n", b->dev, b->blockno);
 
   releasesleep(&b->lock);
 
