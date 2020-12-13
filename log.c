@@ -32,8 +32,9 @@
 // Contents of the header block, used for both the on-disk header block
 // and to keep track in memory of logged block# before commit.
 struct logheader {
-  int n;
+  // int n;
   int block[LOGSIZE];
+  char bitmap[LOGSIZE];
 };
 
 struct log {
@@ -45,12 +46,18 @@ struct log {
   int dev;
   struct logheader lh;
 
-  struct buf *logbuf[8]; // arbitrary number
+  char commit_bitmap[LOGSIZE];
+  struct buf *logbuf[LOGSIZE];
 };
 struct log log;
 
 static void recover_from_log(void);
 static void commit();
+
+int ckpt_started = 0;
+int ckpt_running = 0;
+int ckpt_runcount = 0;
+struct sleeplock ckptlock;
 
 void
 initlog(int dev)
@@ -65,25 +72,45 @@ initlog(int dev)
   log.size = sb.nlog;
   log.dev = dev;
   recover_from_log();
+
+  initsleeplock(&ckptlock, "checkpoint lock");
 }
 
 // Copy committed blocks from log to their home location
 static void
-install_trans(void)
+install_trans(int from_ckpt)
 {
   int tail;
 
-  for (tail = 0; tail < log.lh.n; tail++) {
-    struct buf *lbuf = log.logbuf[tail];
-    if (!lbuf)
+  while (ckpt_runcount > 0)
+  {
+    for (tail = 0; tail < LOGSIZE; tail++)
     {
-      lbuf = bread(log.dev, log.start + tail + 1); // read log block
+      if (!log.commit_bitmap[tail])
+        continue;
+      cprintf("==================commiting STA log t=%d \n", tail);
+      struct buf *lbuf;
+      if (from_ckpt)
+        lbuf = log.logbuf[tail];
+      else
+      {
+        lbuf = bread(log.dev, log.start + tail + 1); // read log block
+      }
+      cprintf("commit@%d: ", tail);
+      struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
+      memmove(dbuf->data, lbuf->data, BSIZE);                // copy block to dst
+      bwrite(dbuf);                                          // write dst to disk
+      cprintf("commit@%d: ", tail);
+      brelse(lbuf);
+      cprintf("commit@%d: ", tail);
+      brelse(dbuf);
+      acquire(&log.lock);
+      log.lh.bitmap[tail] = 0;
+      log.commit_bitmap[tail] = 0;
+      release(&log.lock);
+      cprintf("====================commiting FIN log t=%d d=%s\n", tail, lbuf->data);
     }
-    struct buf *dbuf = bread(log.dev, log.lh.block[tail]); // read dst
-    memmove(dbuf->data, lbuf->data, BSIZE);  // copy block to dst
-    bwrite(dbuf);  // write dst to disk
-    brelse(lbuf);
-    brelse(dbuf);
+    ckpt_runcount -= 1;
   }
 }
 
@@ -94,9 +121,11 @@ read_head(void)
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *lh = (struct logheader *) (buf->data);
   int i;
-  log.lh.n = lh->n;
-  for (i = 0; i < log.lh.n; i++) {
-    log.lh.block[i] = lh->block[i];
+  // log.lh.n = lh->n;
+  for (i = 0; i < LOGSIZE; i++) {
+    log.lh.bitmap[i] = lh->bitmap[i];
+    if (lh->bitmap[i])
+      log.lh.block[i] = lh->block[i];
   }
   brelse(buf);
 }
@@ -110,9 +139,11 @@ write_head(void)
   struct buf *buf = bread(log.dev, log.start);
   struct logheader *hb = (struct logheader *) (buf->data);
   int i;
-  hb->n = log.lh.n;
-  for (i = 0; i < log.lh.n; i++) {
-    hb->block[i] = log.lh.block[i];
+  // hb->n = log.lh.n;
+  for (i = 0; i < LOGSIZE; i++) {
+    hb->bitmap[i] = log.lh.bitmap[i];
+    if (log.lh.bitmap[i])
+      hb->block[i] = log.lh.block[i];
   }
   bwrite(buf);
   brelse(buf);
@@ -122,8 +153,9 @@ static void
 recover_from_log(void)
 {
   read_head();
-  install_trans(); // if committed, copy from log to disk
-  log.lh.n = 0;
+  ckpt_runcount += 1;
+  install_trans(0); // if committed, copy from log to disk
+  // log.lh.n = 0;
   write_head(); // clear the log
 }
 
@@ -135,10 +167,12 @@ begin_op(void)
   while(1){
     if(log.committing){
       sleep(&log, &log.lock);
-    } else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
-      // this op might exhaust log space; wait for commit.
-      sleep(&log, &log.lock);
-    } else {
+    }
+    //  else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
+    //   // this op might exhaust log space; wait for commit.
+    //   sleep(&log, &log.lock);
+    // } 
+    else {
       log.outstanding += 1;
       release(&log.lock);
       break;
@@ -185,26 +219,64 @@ write_log(void)
 {
   int tail;
 
-  for (tail = 0; tail < log.lh.n; tail++) {
+  for (tail = 0; tail < LOGSIZE; tail++) {
+    if (!log.lh.bitmap[tail])
+      continue;
+    cprintf("==================writing STA t=%d\n", tail);
+    cprintf("write@%d: ", tail);
     struct buf *to = bread(log.dev, log.start+tail+1); // log block
+    log.lh.bitmap[tail] = 1;
     log.logbuf[tail] = to;
+    cprintf("write@%d: ", tail);
     struct buf *from = bread(log.dev, log.lh.block[tail]); // cache block
     memmove(to->data, from->data, BSIZE);
     bwrite(to);  // write the log
+    cprintf("write@%d: ", tail);
     brelse(from);
     // brelse(to);
+    cprintf("==================writing FIN log t=%d d=%s\n", tail, from->data);
   }
 }
 
 static void
 commit()
 {
-  if (log.lh.n > 0) {
+  int go = 0;
+  int i;
+  for (i = 0; i < LOGSIZE; i++)
+  {
+    if (log.lh.bitmap[i])
+    {
+      go = 1;
+      break;
+    }
+  }
+
+  if (go) {
+    cprintf("going commit\n");
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
-    install_trans(); // Now install writes to home locations
-    log.lh.n = 0;
-    write_head();    // Erase the transaction from the log
+
+    acquire(&log.lock);
+    int i;
+    for (i = 0; i < LOGSIZE; i++)
+    {
+      if (log.lh.bitmap[i])
+        log.commit_bitmap[i] = 1;
+    }
+    release(&log.lock);
+
+    ckpt_runcount += 1;
+    if (!ckpt_started)
+    {
+      install_trans(1); // Now install writes to home locations
+      // log.lh.n = 0;
+      write_head(); // Erase the transaction from the log
+    }
+    else
+    {
+      releasesleep(&ckptlock);
+    }
   }
 }
 
@@ -222,19 +294,28 @@ log_write(struct buf *b)
 {
   int i;
 
-  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)
-    panic("too big a transaction");
+  // if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)
+  //   panic("too big a transaction");
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 
   acquire(&log.lock);
-  for (i = 0; i < log.lh.n; i++) {
-    if (log.lh.block[i] == b->blockno)   // log absorbtion
+  for (i = 0; i < LOGSIZE; i++) {
+    if (log.lh.bitmap[i] && log.lh.block[i] == b->blockno)   // log absorbtion
       break;
   }
+  if (i == LOGSIZE)
+  {
+    for (i = 0; i < LOGSIZE; i++)
+    {
+      if (!log.lh.bitmap[i])
+        break;
+    }
+  }
+  log.lh.bitmap[i] = 1;
   log.lh.block[i] = b->blockno;
-  if (i == log.lh.n)
-    log.lh.n++;
+  // if (i == log.lh.n)
+  //   log.lh.n++;
   b->flags |= B_DIRTY; // prevent eviction
   release(&log.lock);
 }
@@ -242,7 +323,17 @@ log_write(struct buf *b)
 void start_ckpt(void)
 {
   cprintf("running start_ckpt in log.c\n");
+  ckpt_started = 1;
+  acquiresleep(&ckptlock);
   for (;;)
   {
+    acquiresleep(&ckptlock);
+    ckpt_running = 1;
+    cprintf("go checkpoint\n");
+    install_trans(1); // Now install writes to home locations
+    // log.lh.n -= 0;
+    write_head();    // Erase the transaction from the log
+    cprintf("fin checkpoint\n");
+    ckpt_running = 0;
   }
 }
