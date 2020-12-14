@@ -54,6 +54,7 @@ struct log log;
 
 static void recover_from_log(void);
 static void commit();
+int cur_log_count(void);
 
 int ckpt_started = 0;
 struct sleeplock ckptlock;
@@ -183,10 +184,10 @@ begin_op(void)
     if(log.committing){
       sleep(&log, &log.lock);
     }
-    //  else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
-    //   // this op might exhaust log space; wait for commit.
-    //   sleep(&log, &log.lock);
-    // } 
+     else if(cur_log_count() + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
+      // this op might exhaust log space; wait for commit.
+      sleep(&log, &log.lock);
+    } 
     else {
       log.outstanding += 1;
       release(&log.lock);
@@ -310,8 +311,8 @@ log_write(struct buf *b)
 {
   int i;
 
-  // if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)
-  //   panic("too big a transaction");
+  if (cur_log_count() >= LOGSIZE || cur_log_count() >= log.size - 1)
+    panic("too big a transaction");
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 
@@ -351,4 +352,17 @@ void start_ckpt(void)
     write_head();    // Erase the transaction from the log
     // cprintf("fin checkpoint\n");
   }
+}
+
+int
+cur_log_count(void)
+{
+  int i;
+  int cur_logs = 0;
+  for (i = 0; i < LOGSIZE; i++)
+  {
+    if (log.lh.bitmap[i])
+      cur_logs++;
+  }
+  return cur_logs;
 }
