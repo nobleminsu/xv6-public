@@ -4,8 +4,6 @@
 
 int main(void)
 {
-    printf(0, "running ckptdaemon\n");
-    
     startckpt();
 
     return 0;

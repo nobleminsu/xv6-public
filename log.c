@@ -316,7 +316,6 @@ log_write(struct buf *b)
 
 void start_ckpt(void)
 {
-  cprintf("running start_ckpt in log.c\n");
   ckpt_started = 1;
   acquiresleep(&ckptlock);
   for (;;)
